@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 /**
- * paltool v0.01
+ * paltool v0.02
  * Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021 
- * Github: https://github.com/tapule/mdtools
+ * Github: https://github.com/tapule/md-customtools
  *
  * Sega Megadrive/Genesis palette converter
  *
@@ -53,16 +53,16 @@
 #include <ctype.h>
 #include "lodepng.h"
 
-#define MAX_PALETTES            512		/* Who need more?? */
+#define MAX_PALETTES            512		/* Who needs more?? */
 #define MAX_COLORS              64
 #define MAX_FILE_NAME_LENGTH    128
 #define MAX_PATH_LENGTH         1024
 
 const char version_text [] =
-    "paltool v0.01\n"
+    "paltool v0.02\n"
     "Sega Megadrive/Genesis palette converter\n"
     "Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021\n"
-    "Github: https://github.com/tapule/mdtools\n";
+    "Github: https://github.com/tapule/md-customtools\n";
 
 const char help_text [] =
     "usage: paltool [options] [-s] SRC_DIR -[p] DEST_DIR -[n] BASE_NAME\n"
@@ -244,6 +244,13 @@ uint32_t palette_read(const char* path, const char *file,
         return error;
     }
 
+    /* Checks if the image is an indexed one */
+    if (png_state.info_raw.colortype != LCT_PALETTE)
+    {
+        printf("\tSkiping file: The image must be in indexed color mode\n");
+        return 1;
+    }
+
     /* Read a maximum of 16 colors */
     palette_size = png_state.info_png.color.palettesize > MAX_COLORS
                    ? MAX_COLORS : png_state.info_png.color.palettesize;
@@ -314,7 +321,7 @@ bool build_header_file(const char *path, const char *name,
     }
 
     /* An information message */
-    fprintf(h_file, "/* Generated with paltool v0.01                */\n");
+    fprintf(h_file, "/* Generated with paltool v0.02                */\n");
     fprintf(h_file, "/* a Sega Megadrive/Genesis palette converter  */\n");
     fprintf(h_file, "/* Github: https://github.com/tapule           */\n\n");
 

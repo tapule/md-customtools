@@ -2,7 +2,7 @@
 #
 # paltool a Sega Megadrive/Genesis palette converter
 # Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021
-# Github: https://github.com/tapule/mdtools
+# Github: https://github.com/tapule/md-customtools
 #
 # Makefile
 # Paltool compiler makefile script
