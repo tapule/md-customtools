@@ -29,14 +29,14 @@
  *
  * #define RES_PAL_MYPAL_SIZE    16
  *
- * extern const uint16_t res_pal_mypal[16];
+ * extern const uint16_t res_pal_mypal[RES_PAL_MYPAL_SIZE];
  *
  * #endif // RES_PAL_H
  * 
  * res_pal.c
  * #include "res_pal.h"
  *
- * const uint16_t res_pal_mypal[15] = {
+ * const uint16_t res_pal_mypal[RES_PAL_MYPAL_SIZE] = {
  *    0x0000, 0x0222, 0x0008, 0x0024, 0x002E, 0x0444, 0x006C, 0x0C80, 
  *    0x0888, 0x008E, 0x02AE, 0x0CCC, 0x0EE8, 0x0AEE, 0x0EEE
  * };
@@ -54,9 +54,9 @@
 #include "lodepng.h"
 
 #define MAX_PALETTES            512		/* Who needs more?? */
-#define MAX_COLORS              64
-#define MAX_FILE_NAME_LENGTH    128
-#define MAX_PATH_LENGTH         1024
+#define MAX_COLORS              64      /* Max colors in a Megadrive palete */
+#define MAX_FILE_NAME_LENGTH    128     /* Max length for file names */
+#define MAX_PATH_LENGTH         1024    /* Max length for paths */
 
 const char version_text [] =
     "paltool v0.02\n"
@@ -86,10 +86,11 @@ typedef struct params_t
 /* Stores palette's data */
 typedef struct palette_t
 {
-    char file[MAX_FILE_NAME_LENGTH];    /* Original png file */
-    char name[MAX_FILE_NAME_LENGTH];    /* Name without the extension */
-    uint16_t colors[MAX_COLORS];        /* Color storage */
-    uint8_t size;                       /* Palette's size in colors */
+    char file[MAX_FILE_NAME_LENGTH];        /* Original png file */
+    char name[MAX_FILE_NAME_LENGTH];        /* Name without the extension */
+    char size_define[MAX_FILE_NAME_LENGTH]; /* Size constant define name  */
+    uint16_t colors[MAX_COLORS];            /* Color storage */
+    uint8_t size;                           /* Palette's size in colors */
 } palette_t;
 
 /* Global storage for the parsed palettes */
@@ -251,7 +252,7 @@ uint32_t palette_read(const char* path, const char *file,
         return 1;
     }
 
-    /* Read a maximum of 16 colors */
+    /* Read a maximum of 64 colors */
     palette_size = png_state.info_png.color.palettesize > MAX_COLORS
                    ? MAX_COLORS : png_state.info_png.color.palettesize;
 
@@ -336,12 +337,13 @@ bool build_header_file(const char *path, const char *name,
     /* Palette sizes defines */
     for (i = 0; i < palette_count; ++i)
     {
-        strcpy(buff, name);
-        strcat(buff, "_");
-        strcat(buff, palettes[i].name);
-        strcat(buff, "_SIZE");
-        strtoupper(buff);
-        fprintf(h_file, "#define %s    %d\n", buff, palettes[i].size);
+        strcpy(palettes[i].size_define, name);
+        strcat(palettes[i].size_define, "_");
+        strcat(palettes[i].size_define, palettes[i].name);
+        strcat(palettes[i].size_define, "_SIZE");
+        strtoupper(palettes[i].size_define);
+        fprintf(h_file, "#define %s    %d\n", palettes[i].size_define,
+                palettes[i].size);
     }
     fprintf(h_file, "\n");
 
@@ -351,8 +353,8 @@ bool build_header_file(const char *path, const char *name,
         strcpy(buff, name);
         strcat(buff, "_");
         strcat(buff, palettes[i].name);
-        fprintf(h_file, "extern const uint16_t %s[%d];\n", buff,
-                palettes[i].size);
+        fprintf(h_file, "extern const uint16_t %s[%s];\n", buff,
+                palettes[i].size_define);
     }
     fprintf(h_file, "\n");
 
@@ -402,7 +404,8 @@ bool build_source_file(const char *path, const char *name,
         strcpy(buff, name);
         strcat(buff, "_");
         strcat(buff, palettes[i].name);
-        fprintf(c_file, "const uint16_t %s[%d] = {", buff, palettes[i].size);
+        fprintf(c_file, "const uint16_t %s[%s] = {", buff,
+                palettes[i].size_define);
         for (j = 0; j < palettes[i].size; ++j)
         {
             /* Every 8 hex colors, add a line feed */
