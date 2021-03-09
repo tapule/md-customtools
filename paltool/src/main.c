@@ -322,9 +322,9 @@ bool build_header_file(const char *path, const char *name,
     }
 
     /* An information message */
-    fprintf(h_file, "/* Generated with paltool v0.02                */\n");
-    fprintf(h_file, "/* a Sega Megadrive/Genesis palette converter  */\n");
-    fprintf(h_file, "/* Github: https://github.com/tapule           */\n\n");
+    fprintf(h_file, "/* Generated with paltool v0.02                     */\n");
+    fprintf(h_file, "/* a Sega Megadrive/Genesis palette converter       */\n");
+    fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools */\n\n");
 
     /* Header include guard */
     strcpy(buff, name);
@@ -381,7 +381,8 @@ bool build_source_file(const char *path, const char *name,
 {
     FILE *c_file;
     char buff[1024];
-    uint32_t i, j;
+    uint32_t i;
+    uint32_t j;
 
     strcpy(buff, path);
     strcat(buff, "/");
@@ -398,7 +399,7 @@ bool build_source_file(const char *path, const char *name,
     strcat(buff, ".h");
     fprintf(c_file, "#include \"%s\"\n\n", buff);
 
-    /* Palette definitios */
+    /* Palette definitions */
     for (i = 0; i < palette_count; ++i)
     {
         strcpy(buff, name);
@@ -417,7 +418,7 @@ bool build_source_file(const char *path, const char *name,
             /* If we aren't done, add a separator*/
             if (j + 1 < palettes[i].size)
             {
-                fprintf(c_file, ", ", palettes[i].colors[j]);
+                fprintf(c_file, ", ");
             }
         }
         fprintf(c_file, "\n};\n\n");
