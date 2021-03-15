@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: MIT
 #
-# tiletool a Sega Megadrive/Genesis image tile extractor
+# tilesettool a Sega Megadrive/Genesis image tileset extractor
 # Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021
 # Github: https://github.com/tapule/md-customtools
 #
 # Makefile
-# tiletool compiler makefile script
+# tilesettool compiler makefile script
 #
 
 # Default base flags
@@ -23,12 +23,12 @@ OBJS  = $(CSRC:.c=.o)
 all: release
 
 release: EXFLAGS  = -O3
-release: tiletool
+release: tilesettool
 
 debug: EXFLAGS = -g -Og -DDEBUG
-debug: tiletool
+debug: tilesettool
 
-tiletool: $(OBJS)
+tilesettool: $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 src/%.o: src/%.c
@@ -37,5 +37,5 @@ src/%.o: src/%.c
 clean:
 	@echo "-> Cleaning project..."
 	@rm -f src/*.o
-	@rm -f tiletool
+	@rm -f tilesettool
 

@@ -1,20 +1,20 @@
 /* SPDX-License-Identifier: MIT */
 /**
- * tiletool v0.01
+ * tilesettool v0.01
  * Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021 
  * Github: https://github.com/tapule/md-customtools
  *
- * A Sega Megadrive/Genesis image tile extractor
+ * A Sega Megadrive/Genesis image tileset extractor
  *
  * Extracts Sega Megadrive/Genesis tiles from 8bpp indexed png files up to 16
  * colors.
  *
- * Usage example: tiletool -s pngs/path -p . -n res_til
+ * Usage example: tilesettool -s pngs/path -p . -n res_til
  * 
  * It extracts tilesets in "pngs/path/*.png" and generates the C source files
  * "base_name.h" and "base_name.c" in "dest/path" directory.
- * For each png file, tiletool adds a define with its size in tiles and a const
- * uint32_t array containing the tileset data (one tile a row).
+ * For each png file, tilesettool adds a define with its size in tiles and a
+ * const uint32_t array containing the tileset data (one tile a row).
  * 
  * If -p parameter is not specified, the current directory will be used as
  * destination folder.
@@ -54,18 +54,18 @@
 #include <ctype.h>
 #include "lodepng.h"
 
-#define MAX_TILESETS            512		/* Enough?? */
+#define MAX_TILESETS            512	    /* Enough?? */
 #define MAX_FILE_NAME_LENGTH    128     /* Max length for file names */
 #define MAX_PATH_LENGTH         1024    /* Max length for paths */
 
 const char version_text [] =
-    "tiletool v0.01\n"
-    "A Sega Megadrive/Genesis image tile extractor\n"
+    "tilesettool v0.01\n"
+    "A Sega Megadrive/Genesis image tileset extractor\n"
     "Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021\n"
     "Github: https://github.com/tapule/md-customtools\n";
 
 const char help_text [] =
-    "usage: tiletool [options] [-s] SRC_DIR -[p] DEST_DIR -[n] BASE_NAME\n"
+    "usage: tilesettool [options] [-s] SRC_DIR -[p] DEST_DIR -[n] BASE_NAME\n"
     "\n"
     "Options:\n"
     "  -v, --version       show version information and exit\n"
@@ -439,8 +439,8 @@ bool build_header_file(const char *path, const char *name,
     }
 
     /* An information message */
-    fprintf(h_file, "/* Generated with tiletool v0.01                    */\n");
-    fprintf(h_file, "/* a Sega Megadrive/Genesis image tile extractor    */\n");
+    fprintf(h_file, "/* Generated with tilesettool v0.01                    */\n");
+    fprintf(h_file, "/* a Sega Megadrive/Genesis image tileset extractor    */\n");
     fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools */\n\n");
 
     /* Header include guard */
