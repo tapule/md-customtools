@@ -9,9 +9,9 @@
 # md-customtools main makefile compiler script
 #
 
-.PHONY: all paltool tilesettool clean
+.PHONY: all paltool tilesettool tileimagetool clean
 
-all: paltool tilesettool
+all: paltool tilesettool tileimagetool
 
 paltool:
 	make -C paltool
@@ -19,8 +19,12 @@ paltool:
 tilesettool:
 	make -C tilesettool
 
+tileimagetool:
+	make -C tileimagetool
+
 clean:
 	@echo "-> Cleaning project..."
 	@make -C paltool clean
 	@make -C tilesettool clean
+	@make -C tileimagetool clean
 
