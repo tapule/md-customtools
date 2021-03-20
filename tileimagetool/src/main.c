@@ -14,13 +14,15 @@
  * It processes images in "pngs/path/*.png" to extract tiles and to build a tile
  * image drawable in a plane. It generates the C source files "base_name.h" and
  * "base_name.c" in "dest/path" directory.
- * For each png file, tileimagetool adds a define with its size in tiles and a
- * const uint32_t array containing the tileset data (one tile a row).
+ * For each png file, tileimagetool adds a define with its dimensions in tiles,
+ * a define with its tileset size, a const uint16_t array containing the plane
+ * tiles properties and a const uint32_t array containing the tileset data (one
+ * tile a row).
  * 
  * If -p parameter is not specified, the current directory will be used as
  * destination folder.
  * 
- * If "mytileset.png" is in "pngs/path" the previos example usage generates:
+ * If "myimg.png" is in "pngs/path" the previos example usage generates:
  * 
  * res_img.h
  * #ifndef RES_IMG_H
@@ -28,22 +30,25 @@
  *
  * #include <stdint.h>
  *
- * #define RES_IMG_MYIMAGE_TILESET_SIZE    9
- * #define RES_IMG_MYIMAGE_WIDTH    3
- * #define RES_IMG_MYIMAGE_HEIGTH   3
+ * #define RES_IMG_MYIMG_WIDTH    2
+ * #define RES_IMG_MYIMG_HEIGHT   2
+ * #define RES_IMG_MYIMAGE_TILESET_SIZE    2
  *
- * extern const uint32_t res_img_myimage_tileset[RES_IMG_MYIMAGE_TILESET_SIZE * 8];
- * extern const uint16_t res_img_myimage[RES_IMG_MYIMAGE_WIDTH * RES_IMG_MYIMAGE_HEIGTH];
+ * extern const uint16_t res_img_myimg[RES_IMG_MYIMG_WIDTH * RES_IMG_MYIMG_HEIGHT];
+ * extern const uint32_t res_img_myimg_tileset[RES_IMG_MYIMG_TILESET_SIZE * 8];
  *
  * #endif // RES_IMG_H
  * 
  * res_img.c
  * #include "res_img.h"
  *
- * const uint32_t res_til_mytileset[RES_TIL_MYTILESET_SIZE * 8] = {
+ * const uint16_t res_img_myimg[RES_IMG_MYIMG_WIDTH * RES_IMG_MYIMG_HEIGHT] = {
+ *    0x0000, 0x0001,
+ *    0x0000, 0x0001 
+ * };
+ * const uint32_t res_img_myimg[RES_IMG_MYIMG_TILESET_SIZE * 8] = {
  *    0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 
- *    0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111211,
- *    0x11111221, 0x11111221, 0x11111222, 0x21111222, 0x21112221, 0x21112211, 0x21111111, 0x21111111
+ *    0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111211
  * };
  *
  */
@@ -64,7 +69,7 @@
 
 const char version_text [] =
     "tileimagetool v0.01\n"
-    "A Sega Megadrive/Genesis image tileset extractor\n"
+    "A Sega Megadrive/Genesis tile image extractor\n"
     "Coded by: Juan Ángel Moreno Fernández (@_tapule) 2021\n"
     "Github: https://github.com/tapule/md-customtools\n";
 
@@ -74,7 +79,7 @@ const char help_text [] =
     "Options:\n"
     "  -v, --version       show version information and exit\n"
     "  -h, --help          show this help message and exit\n"
-    "  -s SRC_DIR          use SRC_DIR to search png files to extract tiles\n"
+    "  -s SRC_DIR          use SRC_DIR to search png files to extract images\n"
     "  -p DEST_DIR         use DEST_DIR to save generated C source files\n"
     "                      The current directory will be used as default\n"
     "  -n BASE_NAME        use BASE_NAME as prefix for files, defines, vars, etc\n";
@@ -101,10 +106,10 @@ typedef struct image_t
     char file[MAX_FILE_NAME_LENGTH];           /* Original png file */
     char name[MAX_FILE_NAME_LENGTH];           /* Name without the extension */
     char width_define[MAX_FILE_NAME_LENGTH];   /* Width constant define name */
-    char heigth_define[MAX_FILE_NAME_LENGTH];  /* Heigth constant define name */
+    char height_define[MAX_FILE_NAME_LENGTH];  /* Height constant define name */
     uint16_t *data;                            /* Plane tiles data storage */
     uint16_t width;                            /* Image width in tiles */
-    uint16_t heith;                            /* Image heigth in tiles */
+    uint16_t height;                           /* Image height in tiles */
     tileset_t tileset;                         /* Tileset data */
 } image_t;
 
@@ -137,6 +142,40 @@ void strtoupper(char *str)
 uint8_t swap_nibbles(const uint8_t value)
 {
     return (value >> 4) | (value << 4);
+}
+
+/**
+ * @brief Converts a 8bpp image data buffer to 4bpp
+ * 
+ * @param image 8bpp image data buffer
+ * @param size Size of image data in bytes (equals pixels)
+ * @return uint8_t* The new 4bpp image data buffer
+ */
+uint8_t *image_to_4bpp(uint8_t *image, const uint32_t size)
+{
+    uint8_t *image_4bpp = NULL;
+    uint8_t *src = NULL;
+    uint8_t *dest = NULL;
+    uint32_t i;
+
+    /* Requests memory for the new image which needs half the original */
+    image_4bpp = malloc(size / 2);
+    if (!image_4bpp)
+    {
+        return NULL;
+    }
+    src = image;
+    dest = image_4bpp;
+
+    /* Converts two bytes in 8bpp (2 pixels) to one byte in 4bpp */
+    for (i = 0; i < size / 2; ++i)
+    {
+        *dest = ((src[0] & 0x0F) << 4) | ((src[1] & 0x0F) << 0);
+        ++dest;
+        src += 2;
+    }
+
+    return image_4bpp;
 }
 
 /**
@@ -209,134 +248,122 @@ uint8_t *tile_flip_y(const uint8_t *tile)
 }
 
 /**
- * @brief Checks if a tile exist, in any form, in a tile set
+ * @brief Checks if a tile exist, in any form, in a tile set and returns its
+ * plane tile configuration
  * 
  * @param tile Tile to check
  * @param tile_storage Storage with the tiles to compare to
  * @param size Number of tiles in the storage
- * @return true If the tile is found, false if it does not exist
+ * @return Plane tile configuration with vertical and horizontal flags set
  *
  * @note This function checks the source tile against each tile in the tileset
  * and also with the flip X, flip Y and flip XY version.
  */
-// CHECKME: NO SIRVER. DEBE DEVOLVER QUE TIPO DE COINCIDENCIA HA ENCONTRADO
-// PARA PODER ESTABLECER EN LA FUNCIÓN ORIGEN LOS FLAGS DE FLIP
-bool tile_exist(const uint8_t *tile, const uint8_t *tile_storage,
-                const uint32_t size)
+uint16_t tile_search(const uint8_t *tile, const uint8_t *tile_storage,
+                     const uint32_t size)
 {
     uint32_t i;
-    uint8_t *work_tile = NULL;
+    uint16_t plane_tile;        /* Plane tile configuration */
+    uint8_t *work_tile = NULL;  /* Temporary tiles to work with */
     uint8_t *work_tile2 = NULL;
 
     for (i = 0; i < size; ++i)
     {
+        /* Index of tile in the tileset storage */
+        plane_tile = i;
+
         /* Compare tiles directly */
         if (!memcmp(tile, tile_storage, 32))
         {
-            return true;
+            return plane_tile;
         }
         /* Compare with the flip Y version */        
         work_tile = tile_flip_y(tile_storage);
         if (!memcmp(tile, work_tile, 32))
         {
-            return true;
+            /* Sets the vertical flag on */
+            plane_tile |= 0x1000;
+            return plane_tile;
         }
         /* Compare with the flip Y, flip X version */        
         work_tile2 = tile_flip_x(work_tile);
         free(work_tile);
         if (!memcmp(tile, work_tile2, 32))
         {
-            return true;
+            /* Sets the vertical and horizontal flag on */
+            plane_tile |= 0x1800;
+            return plane_tile;
         }
         /* Compare with the flip X version */        
         work_tile = tile_flip_y(work_tile2);
         free(work_tile2);
         if (!memcmp(tile, work_tile, 32))
         {
-            return true;
+            /* Sets the horizontal flag on */
+            plane_tile |= 0x0800;
+            return plane_tile;
         }
+        free(work_tile);
         /* Advance to the next tile */
         tile_storage += 32;
     }
 
-    return false;
+    /* If the tile wasn't found, size is the next index for the tile */
+    return size;
 }
 
 /**
- * @brief Converts a 8bpp image data buffer to 4bpp
- * 
- * @param image 8bpp image data buffer
- * @param size Size of image data in bytes (equals pixels)
- * @return uint8_t* The new 4bpp image data buffer
- */
-uint8_t *image_to_4bpp(uint8_t *image, const uint32_t size)
-{
-    uint8_t *image_4bpp = NULL;
-    uint8_t *src = NULL;
-    uint8_t *dest = NULL;
-    uint32_t i;
-
-    /* Requests memory for the new image which needs half the original */
-    image_4bpp = malloc(size / 2);
-    if (!image_4bpp)
-    {
-        return NULL;
-    }
-    src = image;
-    dest = image_4bpp;
-
-    /* Converts two bytes in 8bpp (2 pixels) to one byte in 4bpp */
-    for (i = 0; i < size / 2; ++i)
-    {
-        *dest = ((src[0] & 0x0F) << 4) | ((src[1] & 0x0F) << 0);
-        ++dest;
-        src += 2;
-    }
-
-    return image_4bpp;
-}
-
-/**
- * @brief Extracts 8x8 pixel tiles from a 4bpp image
+ * @brief Extracts a plane image and its tileset from a 4bpp image
  * 
  * @param image Source image to extract the tiles from
  * @param width Width in pixels of source image
- * @param heigth Heigth in pixels of source image
+ * @param height Height in pixels of source image
  * @return uint8_t* Buffer containing the extracted tiles
  */
-uint8_t *image_4bpp_to_tile(uint8_t *image, const uint32_t width, const uint32_t heigth)
+bool plane_image_extract(uint8_t *image, const uint32_t width,
+                         const uint32_t height, image_t *plane_image)
 {
     uint32_t tile_width;    /* Width in tiles of our image */
-    uint32_t tile_height;   /* Heigth in tiles of our image */
-    uint8_t *tiles = NULL;  /* Memory storage for our tiles */
-    uint8_t *tiles_p = NULL;/* Current position in the tiles memory */
-    uint32_t tiles_count;   /* Current number of tiles in the tiles memory */
+    uint32_t tile_height;   /* Height in tiles of our image */
+    uint8_t *tiles = NULL;  /* Temporary memory storage for the tileset */
+    uint8_t *tiles_p = NULL;/* Current position in the tileset memory */
+    uint32_t tiles_count;   /* Current number of tiles in the tileset */
     uint8_t *image_p = NULL;/* Current position in the image memory */
     uint32_t pitch;         /* Jump to the next tile row */
     uint32_t tile_x;        /* Tile x positon counter */
     uint32_t tile_y;        /* Tile y position counter */
     uint32_t tile_row;      /* Row copy position counter */
+    uint16_t plane_tile;    /* Plane tile configuration */
+    uint16_t *plane_image_p;/* Current position in the plane image tiles*/
 
     /* Image dimesions are in pixels, convert to tiles */
     tile_width = width / 8;
-    tile_height = heigth / 8;
+    tile_height = height / 8;
 
     /*
      A tile is 32 bytes, 8 rows of 4 bytes each. Pitch is the jump in bytes in
      the original image to point to the start of the next row in a tile 
     */
-    pitch =  tile_width * 4;
+    pitch = tile_width * 4;
     
     /* Requests 32 bytes of memory for each tile to have enough space */
     tiles = malloc(tile_width * tile_height * 32);
     if (!tiles)
     {
-        return NULL;
+        return false;
+    }
+    /* Requests memory for plane image storage */
+    plane_image->data = malloc(tile_width * tile_height *
+                               sizeof(uint16_t));
+    if (!plane_image->data)
+    {
+        return false;
     }
 
     /* Point to the start of tiles buffer */
     tiles_p = tiles;
     tiles_count = 0;
+    plane_image_p = plane_image->data;
 
     for (tile_y = 0; tile_y < tile_height; ++tile_y)
     {
@@ -345,31 +372,49 @@ uint8_t *image_4bpp_to_tile(uint8_t *image, const uint32_t width, const uint32_t
             /* Move the image pointer to the start of next tile to process */
             image_p = &image[((tile_y * 8) * pitch) + (tile_x * 4)];
 
-            /*
-             * Add a new tile if it does not exist in the buffer, checking for
-             * vertical and horizontal flips.
-             */
-            // CHECKME: ESTO NO ES SUFICIENTE, DEBE RELLENAR LA INFO DE LA IMAGEN
-            // ASI COMO LA INFO DEL TILESET
-            if (!tile_exist(image_p, tiles, tiles_count))
+            /* Save the current tile to search for duplicates */
+            for(tile_row = 0; tile_row < 8; ++tile_row)
             {
-                /* Put current tile's rows in the tiles buffer */
-                for(tile_row = 0; tile_row < 8; ++tile_row)
-                {
-                    tiles_p[0] = image_p[0];
-                    tiles_p[1] = image_p[1];
-                    tiles_p[2] = image_p[2];
-                    tiles_p[3] = image_p[3];
-                    /* Jump to next tile row */
-                    image_p += pitch;
-                    tiles_p += 4;
-                }
+                tiles_p[0] = image_p[0];
+                tiles_p[1] = image_p[1];
+                tiles_p[2] = image_p[2];
+                tiles_p[3] = image_p[3];
+                /* Jump to next tile row */
+                image_p += pitch;
+                tiles_p += 4;
+            }
+
+            /* Compares the current tile with all the others */
+            plane_tile = tile_search(tiles_p - 32, tiles, tiles_count);
+            /* The tile wasn't found, we already added it to the tileset */
+            if (plane_tile == tiles_count)
+            {
                 ++tiles_count;
             }
+            else
+            {
+                /* Not found, adjust the write position in the tiles buffer */
+                tiles_p -= 32;
+            }
+            /* Save the plane tile config */
+            *plane_image_p = plane_tile;
+            ++plane_image_p;
         }
     }
-
-    return tiles;
+    /* Save plane image sizes */
+    plane_image->width = tile_width;
+    plane_image->height = tile_height;
+ 
+    /* Setup and copy the resulting tileset */
+    plane_image->tileset.size = tiles_count;
+    plane_image->tileset.data = malloc(tiles_count * 32);
+    memcpy(plane_image->tileset.data, tiles, tiles_count * 32);
+    free(tiles);
+ 
+    printf("\tImage size in tiles: %dx%d\n", tile_width, tile_height);
+    printf("\tImage tileset size: %d\n", tiles_count);
+ 
+    return true;
 }
 
 /**
@@ -452,11 +497,11 @@ bool parse_params(uint32_t argc, char** argv, params_t *params)
  * 
  * @param path File path
  * @param file Png image file to process
- * @param tileset_index Index in the tilesets array to store the data
+ * @param image_index Index in the images array to store the data
  * @return 0 if success, lodepng error code in other case
  */
 uint32_t image_read(const char* path, const char *file,
-                      const uint32_t tileset_index)
+                    const uint32_t image_index)
 {
     char file_path[MAX_PATH_LENGTH];
     char *file_ext;
@@ -466,7 +511,7 @@ uint32_t image_read(const char* path, const char *file,
     LodePNGState png_state;
     uint8_t *image_data = NULL;
     uint32_t image_width;
-    uint32_t image_heigth;
+    uint32_t image_height;
     uint8_t *image_4bpp = NULL;
     uint32_t i;
 
@@ -489,7 +534,7 @@ uint32_t image_read(const char* path, const char *file,
     /* Get colors and pixels without conversion */
     png_state.decoder.color_convert = false;
     /* Decode our png image */
-    error = lodepng_decode(&image_data, &image_width, &image_heigth, &png_state,
+    error = lodepng_decode(&image_data, &image_width, &image_height, &png_state,
                            png_data, png_size);
     free(png_data);
     /* Checks for errors in the decode stage */
@@ -530,10 +575,10 @@ uint32_t image_read(const char* path, const char *file,
         return 1;
     }
  
-    /* Checks if image heigth is multiple of 8 */
-    if (image_heigth % 8)
+    /* Checks if image height is multiple of 8 */
+    if (image_height % 8)
     {
-        printf("\tSkiping file: Image heigth is not multiple of 8. \n");
+        printf("\tSkiping file: Image height is not multiple of 8. \n");
         return 1;
     }
 
@@ -554,19 +599,17 @@ uint32_t image_read(const char* path, const char *file,
         image_4bpp = image_data;
     }
 
-    /* Extract the tileset from our 4bpp image data */
-    tilesets[tileset_index].data = image_4bpp_to_tile(image_4bpp,
-                                                      image_width,
-                                                      image_heigth);
+    /* Extract the plane image and tileset from our 4bpp image data */
+    plane_image_extract(image_4bpp, image_width, image_height, 
+                        &images[image_index]);
     free(image_4bpp);
 
-    /* Save the tileset file name and tile size */
-    strcpy(tilesets[tileset_index].file, file);
-    tilesets[tileset_index].size = (image_width / 8) * (image_heigth / 8);
-
+    /* Save the image file name and sizes in tiles */
+    strcpy(images[image_index].file, file);
+ 
     /* Save the tileset name without the extension in the tileset struct */
-    strcpy( tilesets[tileset_index].name, file);
-    file_ext = strrchr( tilesets[tileset_index].name, '.');
+    strcpy( images[image_index].name, file);
+    file_ext = strrchr( images[image_index].name, '.');
     if (file_ext)
     {
         *file_ext = '\0';
@@ -575,17 +618,16 @@ uint32_t image_read(const char* path, const char *file,
     return 0;
 }
 
-#if 0
 /**
- * @brief Builds the C header file for the generated tilesets
+ * @brief Builds the C header file for the generated plane images
  * 
  * @param path Destinatio path for the .h file
  * @param name Base name for the .h file (name + .h)
- * @param tileset_count Number of tilesets to process from the global tilesets
+ * @param image_count Number of images to process from the global image storage
  * @return true if everythig was correct, false otherwise
  */
 bool build_header_file(const char *path, const char *name,
-                       const uint32_t tileset_count)
+                       const uint32_t image_count)
 {
     FILE *h_file;
     char buff[1024];
@@ -603,8 +645,8 @@ bool build_header_file(const char *path, const char *name,
 
     /* An information message */
     fprintf(h_file, "/* Generated with tileimagetool v0.01                    */\n");
-    fprintf(h_file, "/* a Sega Megadrive/Genesis image tileset extractor    */\n");
-    fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools */\n\n");
+    fprintf(h_file, "/* A Sega Megadrive/Genesis tile image extractor         */\n");
+    fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools      */\n\n");
 
     /* Header include guard */
     strcpy(buff, name);
@@ -614,27 +656,49 @@ bool build_header_file(const char *path, const char *name,
     fprintf(h_file, "#define %s\n\n", buff);
     fprintf(h_file, "#include <stdint.h>\n\n");
 
-    /* Tileset sizes defines */
-    for (i = 0; i < tileset_count; ++i)
+    /* Image and tileset sizes defines */
+    for (i = 0; i < image_count; ++i)
     {
-        strcpy(tilesets[i].size_define, name);
-        strcat(tilesets[i].size_define, "_");
-        strcat(tilesets[i].size_define, tilesets[i].name);
-        strcat(tilesets[i].size_define, "_SIZE");
-        strtoupper(tilesets[i].size_define);
-        fprintf(h_file, "#define %s    %d\n", tilesets[i].size_define,
-                tilesets[i].size);
+        /* BASENAME_IMAGENAME */
+        strcpy(images[i].width_define, name);
+        strcat(images[i].width_define, "_");
+        strcat(images[i].width_define, images[i].name);
+        strtoupper(images[i].width_define);
+        /* Copy to height and tileset size */
+        strcpy(images[i].height_define, images[i].width_define);
+        strcpy(images[i].tileset.size_define, images[i].width_define);
+
+        /* BASENAME_IMAGENAME_WIDTH */
+        strcat(images[i].width_define, "_WIDTH");
+        fprintf(h_file, "#define %s    %d\n", images[i].width_define,
+                images[i].width);
+
+        /* BASENAME_IMAGENAME_HEIGHT */
+        strcat(images[i].height_define, "_HEIGHT");
+        fprintf(h_file, "#define %s    %d\n", images[i].height_define,
+                images[i].height);
+
+        /* BASENAME_IMAGENAME_TILESET_SIZE */
+        strcat(images[i].tileset.size_define, "_TILESET_SIZE");
+        fprintf(h_file, "#define %s    %d\n", images[i].tileset.size_define,
+                images[i].tileset.size);
+        fprintf(h_file, "\n");
     }
     fprintf(h_file, "\n");
 
-    /* Tilesets declarations */   
-    for (i = 0; i < tileset_count; ++i)
+    /* Images and tilesets declarations */   
+    for (i = 0; i < image_count; ++i)
     {
         strcpy(buff, name);
         strcat(buff, "_");
-        strcat(buff, tilesets[i].name);
+        strcat(buff, images[i].name);
+        fprintf(h_file, "extern const uint16_t %s[%s * %s];\n", buff,
+                images[i].width_define, images[i].height_define);
+
+        strcat(buff, "_tileset");
         fprintf(h_file, "extern const uint32_t %s[%s * 8];\n", buff,
-                tilesets[i].size_define);
+                images[i].tileset.size_define);
+        fprintf(h_file, "\n");
     }
     fprintf(h_file, "\n");
 
@@ -649,21 +713,22 @@ bool build_header_file(const char *path, const char *name,
 }
 
 /**
- * @brief Builds the C source file for the extracted tilesets
+ * @brief Builds the C source file for the extracted images
  * 
  * @param path Destinatio path for the .c file
  * @param name Base name for the .c file (name + .c)
- * @param tileset_count Number of tilesets to process from the global storage
+ * @param image_count Number of images to process from the global image storage
  * @return true if everythig was correct, false otherwise
  */
 bool build_source_file(const char *path, const char *name,
-                       const uint32_t tileset_count)
+                       const uint32_t image_count)
 {
     FILE *c_file;
     char buff[1024];
-    uint32_t tileset;   /* Current tileset to process */
+    uint32_t image;     /* Current image to process */
     uint32_t tile;      /* Current tile to process */
-    uint32_t row;       /* Current row of pixels in a tile */
+    uint32_t row;       /* Current row */
+    uint32_t column;    /* Current column */
 
     strcpy(buff, path);
     strcat(buff, "/");
@@ -680,27 +745,52 @@ bool build_source_file(const char *path, const char *name,
     strcat(buff, ".h");
     fprintf(c_file, "#include \"%s\"\n\n", buff);
 
-    for (tileset = 0; tileset < tileset_count; ++tileset)
+    for (image = 0; image < image_count; ++image)
     {
+        /* Writes the plane image definition */
         strcpy(buff, name);
         strcat(buff, "_");
-        strcat(buff, tilesets[tileset].name);
-        fprintf(c_file, "const uint32_t %s[%s * 8] = {", buff,
-                tilesets[tileset].size_define);
+        strcat(buff, images[image].name);
+        fprintf(c_file, "const uint16_t %s[%s * %s] = {", buff,
+                images[image].width_define, images[image].height_define);
 
-        for (tile = 0; tile < tilesets[tileset].size; ++tile)
+        for (row = 0; row < images[image].height; ++row)
         {
-            /* Separate tile declaration from text line start */
+            /* Separate image definition from text line start */
+            fprintf(c_file, "\n    ");
+            /* Writes all the image's tiles */
+            for (column = 0; column < images[image].width; ++column)
+            {
+                fprintf(c_file, "0x%04X",
+                        images[image].data[(row * images[image].width) + column]);
+                /* If we aren't done, add a separator*/
+                if ((row * images[image].width) + column + 1 < 
+                    (images[image].width * images[image].height))
+                {
+                    fprintf(c_file, ", ");
+                }
+            }
+        }
+        fprintf(c_file, "\n};\n");
+
+        /* Writes the plane image tileset definition */
+        strcat(buff, "_tileset");
+        fprintf(c_file, "const uint32_t %s[%s * 8] = {", buff,
+                images[image].tileset.size_define);
+
+        for (tile = 0; tile < images[image].tileset.size; ++tile)
+        {
+            /* Separate tile definition from text line start */
             fprintf(c_file, "\n    ");
             /* Writes all the tile rows in a single line */
             for (row = 0; row < 8; ++row)
             {
                 /* Each tile row is 4 hex values */
                 fprintf(c_file, "0x");
-                fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4)]);
-                fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 1]);
-                fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 2]);
-                fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 3]);
+                fprintf(c_file, "%02X", images[image].tileset.data[(tile * 32) + (row * 4)]);
+                fprintf(c_file, "%02X", images[image].tileset.data[(tile * 32) + (row * 4) + 1]);
+                fprintf(c_file, "%02X", images[image].tileset.data[(tile * 32) + (row * 4) + 2]);
+                fprintf(c_file, "%02X", images[image].tileset.data[(tile * 32) + (row * 4) + 3]);
                 /* Add a separator for each tile row declaration */
                 if (row < 7)
                 {
@@ -708,7 +798,7 @@ bool build_source_file(const char *path, const char *name,
                 }
             }
             /* If we aren't done, add a separator at end of the last tile row */
-            if (tile + 1 < tilesets[tileset].size)
+            if (tile + 1 < images[image].tileset.size)
             {
                 fprintf(c_file, ",");
             }
@@ -719,7 +809,6 @@ bool build_source_file(const char *path, const char *name,
     fclose(c_file);
     return true;
 }
-#endif
 
 int main(int argc, char **argv)
 {
@@ -764,13 +853,13 @@ int main(int argc, char **argv)
         {
             if (!image_read(params.src_path, dir_entry->d_name, image_index))
             {
-                printf("\tPng file to tiles: %s -> %s\n", dir_entry->d_name, 
+                printf("\tPng file to plane image: %s -> %s\n", dir_entry->d_name, 
                        images[image_index].name);
                 ++image_index;
             }
         }
     }
-    printf("%d tilesets readed.\n", image_index);
+    printf("%d images readed.\n", image_index);
     closedir(dir);
 
     if (image_index > 0)

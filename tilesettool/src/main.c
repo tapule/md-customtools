@@ -152,13 +152,13 @@ uint8_t *image_to_4bpp(uint8_t *image, const uint32_t size)
  * 
  * @param image Source image to extract the tiles from
  * @param width Width in pixels of source image
- * @param heigth Heigth in pixels of source image
+ * @param height Height in pixels of source image
  * @return uint8_t* Buffer containing the extracted tiles
  */
-uint8_t *image_4bpp_to_tile(uint8_t *image, const uint32_t width, const uint32_t heigth)
+uint8_t *image_4bpp_to_tile(uint8_t *image, const uint32_t width, const uint32_t height)
 {
     uint32_t tile_width;    /* Width in tiles of our image */
-    uint32_t tile_height;   /* Heigth in tiles of our image */
+    uint32_t tile_height;   /* Height in tiles of our image */
     uint8_t *tiles;         /* Memory storage for our tiles */
     uint8_t *tiles_p;       /* Current position in the tiles memory */
     uint8_t *image_p;       /* Current position in the image memory */
@@ -169,7 +169,7 @@ uint8_t *image_4bpp_to_tile(uint8_t *image, const uint32_t width, const uint32_t
 
     /* Image dimesions are in pixels, convert to tiles */
     tile_width = width / 8;
-    tile_height = heigth / 8;
+    tile_height = height / 8;
 
     /*
      A tile is 32 bytes, 8 rows of 4 bytes each. Pitch is the jump in bytes in
@@ -304,7 +304,7 @@ uint32_t tileset_read(const char* path, const char *file,
     LodePNGState png_state;
     uint8_t *image_data = NULL;
     uint32_t image_width;
-    uint32_t image_heigth;
+    uint32_t image_height;
     uint8_t *image_4bpp = NULL;
     uint32_t i;
 
@@ -327,7 +327,7 @@ uint32_t tileset_read(const char* path, const char *file,
     /* Get colors and pixels without conversion */
     png_state.decoder.color_convert = false;
     /* Decode our png image */
-    error = lodepng_decode(&image_data, &image_width, &image_heigth, &png_state,
+    error = lodepng_decode(&image_data, &image_width, &image_height, &png_state,
                            png_data, png_size);
     free(png_data);
     /* Checks for errors in the decode stage */
@@ -368,10 +368,10 @@ uint32_t tileset_read(const char* path, const char *file,
         return 1;
     }
  
-    /* Checks if image heigth is multiple of 8 */
-    if (image_heigth % 8)
+    /* Checks if image height is multiple of 8 */
+    if (image_height % 8)
     {
-        printf("\tSkiping file: Image heigth is not multiple of 8. \n");
+        printf("\tSkiping file: Image height is not multiple of 8. \n");
         return 1;
     }
 
@@ -395,12 +395,12 @@ uint32_t tileset_read(const char* path, const char *file,
     /* Extract the tileset from our 4bpp image data */
     tilesets[tileset_index].data = image_4bpp_to_tile(image_4bpp,
                                                       image_width,
-                                                      image_heigth);
+                                                      image_height);
     free(image_4bpp);
 
     /* Save the tileset file name and tile size */
     strcpy(tilesets[tileset_index].file, file);
-    tilesets[tileset_index].size = (image_width / 8) * (image_heigth / 8);
+    tilesets[tileset_index].size = (image_width / 8) * (image_height / 8);
 
     /* Save the tileset name without the extension in the tileset struct */
     strcpy( tilesets[tileset_index].name, file);
@@ -441,7 +441,7 @@ bool build_header_file(const char *path, const char *name,
     /* An information message */
     fprintf(h_file, "/* Generated with tilesettool v0.01                    */\n");
     fprintf(h_file, "/* a Sega Megadrive/Genesis image tileset extractor    */\n");
-    fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools */\n\n");
+    fprintf(h_file, "/* Github: https://github.com/tapule/md-customtools    */\n\n");
 
     /* Header include guard */
     strcpy(buff, name);
@@ -527,7 +527,7 @@ bool build_source_file(const char *path, const char *name,
 
         for (tile = 0; tile < tilesets[tileset].size; ++tile)
         {
-            /* Separate tile declaration from text line start */
+            /* Separate tile definition from text line start */
             fprintf(c_file, "\n    ");
             /* Writes all the tile rows in a single line */
             for (row = 0; row < 8; ++row)
@@ -538,7 +538,7 @@ bool build_source_file(const char *path, const char *name,
                 fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 1]);
                 fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 2]);
                 fprintf(c_file, "%02X", tilesets[tileset].data[(tile * 32) + (row * 4) + 3]);
-                /* Add a separator for each tile row declaration */
+                /* Add a separator for each tile row definition */
                 if (row < 7)
                 {
                     fprintf(c_file, ", ");

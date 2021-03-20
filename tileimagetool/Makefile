@@ -23,12 +23,12 @@ OBJS  = $(CSRC:.c=.o)
 all: release
 
 release: EXFLAGS  = -O3
-release: tilesettool
+release: tileimagetool
 
 debug: EXFLAGS = -g -Og -DDEBUG
-debug: tilesettool
+debug: tileimagetool
 
-tilesettool: $(OBJS)
+tileimagetool: $(OBJS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 src/%.o: src/%.c
@@ -37,5 +37,5 @@ src/%.o: src/%.c
 clean:
 	@echo "-> Cleaning project..."
 	@rm -f src/*.o
-	@rm -f tilesettool
+	@rm -f tileimagetool
 
